@@ -199,8 +199,6 @@ def generate_final_qna_container(container_id, raw_text, question_prompt, answer
     
     return json.dumps(final_container, indent=2)
 
-
-
 # ---------------------------
 # FastAPI Setup
 # ---------------------------
@@ -212,33 +210,43 @@ class QNARequest(BaseModel):
     question_prompt: str
     answer_prompt: str
 
+# We'll implement asynchronous processing here.
+# We'll store job status in a global dictionary.
+jobs = {}
+
+def process_qna_job(job_id: str, raw_text: str, question_prompt: str, answer_prompt: str):
+    """Background task that processes the Q&A generation job."""
+    final_json = generate_final_qna_container(job_id, raw_text, question_prompt, answer_prompt, num_pairs=20, model="gpt-4")
+    if final_json:
+        # Optionally push to target API.
+        try:
+            headers = {"Content-Type": "application/json"}
+            push_response = requests.post(TARGET_API_URL, data=final_json, headers=headers)
+            if push_response.status_code != 200:
+                logging.error(f"Failed to push Q&A container for job {job_id}. Status: {push_response.status_code}")
+        except Exception as e:
+            logging.error(f"Error pushing Q&A container for job {job_id}: {e}")
+        jobs[job_id] = {"status": "completed", "result": final_json}
+    else:
+        jobs[job_id] = {"status": "failed", "result": None}
+
 @app.post("/api/generate")
-async def generate_qna(request: QNARequest):
+async def generate_qna(request: QNARequest, background_tasks: BackgroundTasks):
     logging.info("Received QNA generation request.")
-    # Offload the synchronous generation function to a thread so as not to block the event loop.
-    final_json = await asyncio.to_thread(
-        generate_final_qna_container,
-        container_id=request.id,
-        raw_text=request.raw_text,
-        question_prompt=request.question_prompt,
-        answer_prompt=request.answer_prompt,
-        num_pairs=20,
-        model="gpt-4"
-    )
-    if not final_json:
-        raise HTTPException(status_code=500, detail="Failed to generate Q&A container.")
+    job_id = request.id  # Using the provided id as the job ID.
+    jobs[job_id] = {"status": "processing", "result": None}
     
-    headers = {"Content-Type": "application/json"}
-    try:
-        push_response = requests.post(TARGET_API_URL, data=final_json, headers=headers)
-        if push_response.status_code != 200:
-            logging.error(f"Failed to push Q&A container. Status: {push_response.status_code}, Response: {push_response.text}")
-            raise HTTPException(status_code=push_response.status_code, detail="Failed to push Q&A container.")
-    except Exception as e:
-        logging.error(f"Error pushing Q&A container: {e}")
-        raise HTTPException(status_code=500, detail="Error pushing Q&A container.")
+    # Offload the long-running job to the background.
+    background_tasks.add_task(process_qna_job, job_id, request.raw_text, request.question_prompt, request.answer_prompt)
     
-    return {"detail": "Q&A container generated and pushed successfully.", "qna": json.loads(final_json)}
+    # Return immediately with the job ID and a processing status.
+    return {"job_id": job_id, "status": "processing"}
+
+@app.get("/api/status/{job_id}")
+def get_status(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job ID not found")
+    return jobs[job_id]
 
 # ---------------------------
 # Server Deployment
