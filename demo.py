@@ -5,7 +5,7 @@ import requests
 import logging
 import time
 from openai import OpenAI
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 import uvicorn
 
