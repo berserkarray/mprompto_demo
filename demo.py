@@ -221,7 +221,7 @@ def process_qna_job(job_id: str, raw_text: str, question_prompt: str, answer_pro
         # Optionally push to target API.
         try:
             headers = {"Content-Type": "application/json"}
-            push_response = requests.post(TARGET_API_URL, data=final_json, headers=headers)
+            push_response = requests.post(TARGET_API_URL, data=final_json, headers=headers, verify = False)
             if push_response.status_code != 200:
                 logging.error(f"Failed to push Q&A container for job {job_id}. Status: {push_response.status_code}")
         except Exception as e:
