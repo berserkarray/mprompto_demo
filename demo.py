@@ -158,9 +158,9 @@ def generate_final_qna_container(container_id, raw_text, question_prompt, answer
     
     final_container = {
         "id": container_id,
-        "question_prompt": question_prompt,
-        "answer_prompt": answer_prompt,
         "data": {
+            "question_generation_prompt": question_prompt,
+            "answer_generation_prompt": answer_prompt,
             "qa": []
         }
     }
