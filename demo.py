@@ -216,7 +216,7 @@ jobs = {}
 
 def process_qna_job(job_id: str, raw_text: str, question_prompt: str, answer_prompt: str):
     """Background task that processes the Q&A generation job."""
-    final_json = generate_final_qna_container(job_id, raw_text, question_prompt, answer_prompt, num_pairs=20, model="gpt-4")
+    final_json = generate_final_qna_container(job_id, raw_text, question_prompt, answer_prompt, num_pairs=20, model="gpt-4o")
     if final_json:
         # Optionally push to target API.
         try:
